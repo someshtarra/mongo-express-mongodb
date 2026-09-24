@@ -22,6 +22,8 @@ Written from the perspective of a Senior DevOps Engineer, this guide breaks down
 
 In a typical cloud-native architecture, your database must **never** be exposed directly to the public internet. Instead, it sits securely inside an internal private network, while the management UI is exposed through a managed service.
 
+![MongoDB & Mongo Express Kubernetes Architecture](./architecture.png)
+
 ```
                            +------------------------------------------------+
                            |               Kubernetes Cluster               |
