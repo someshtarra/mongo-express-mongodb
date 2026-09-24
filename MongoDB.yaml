@@ -6,7 +6,7 @@ metadata:
   labels:
     app: mongodb
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: mongodb
@@ -31,3 +31,5 @@ spec:
               secretKeyRef:
                 name: mongo-secret
                 key: mongo-root-password
+          - name: GLIBC_TUNABLES
+            value: "glibc.pthread.rseq=1"
