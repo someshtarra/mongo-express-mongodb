@@ -16,10 +16,22 @@ spec:
     spec:
       containers:
         - name: mongo-express-container
-          image: mongo
+          image: mongo-express
           port:
-            - containerPort: 3
+            - containerPort: 8081
           env:
-          - name: 
+          - name: ME_CONFIG_MONGODB_ADMINUSERNAME
             valueForm:
-              - s
+              configMapKeyRef:
+                name: mongo-express-config
+                key: 
+          - name: ME_CONFIG_MONGODB_ADMINPASSWORD
+            valueForm:
+              configMapKeyRef:
+                name: mongo-express-config
+                key: 
+          - name: ME_CONFIG_MONGODB_SERVER
+            valueForm:
+              configMapKeyRef:
+                name: mongo-express-config
+                key: 
