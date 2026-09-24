@@ -22,16 +22,16 @@ spec:
           env:
           - name: ME_CONFIG_MONGODB_ADMINUSERNAME
             valueForm:
-              configMapKeyRef:
+              secretKeyRef:
                 name: mongo-express-config
                 key: 
           - name: ME_CONFIG_MONGODB_ADMINPASSWORD
             valueForm:
-              configMapKeyRef:
+              secretKeyRef:
                 name: mongo-express-config
                 key: 
           - name: ME_CONFIG_MONGODB_SERVER
             valueForm:
               configMapKeyRef:
                 name: mongodb-config
-                key: 
+                key: database_url 
