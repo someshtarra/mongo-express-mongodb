@@ -6,4 +6,4 @@ metadata:
   labels:
     app: mongo-config
 data:
-  database_url: 
+  database_url: mongodb-service
