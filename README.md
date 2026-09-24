@@ -24,6 +24,9 @@ In a typical cloud-native architecture, your database must **never** be exposed 
 
 ![MongoDB & Mongo Express Kubernetes Architecture](./architecture.png)
 
+> 💡 **Interactive Real-Time Architecture Simulator:**  
+> Want to see network packets flowing in real-time? Open [`animated-architecture.html`](./animated-architecture.html) in your browser to simulate live traffic, trigger burst queries, and record 60 FPS video animations for LinkedIn/presentations!
+
 ```
                            +------------------------------------------------+
                            |               Kubernetes Cluster               |
@@ -74,6 +77,8 @@ In a typical cloud-native architecture, your database must **never** be exposed 
 | `MongoDB-service.yaml` | `Service` (`ClusterIP`) | Internal-only virtual IP and DNS name for MongoDB (`mongodb-service:27017`). |
 | `mongo-express.yaml` | `Deployment` | Runs the Mongo Express web UI, dynamically pulling DB credentials from the Secret and ConfigMap. |
 | `mongo-express-service.yaml` | `Service` (`LoadBalancer`) | Exposes the web UI to external traffic with fixed `nodePort: 30000`. |
+| `animated-architecture.html` | `HTML/JS/Canvas` | Interactive 60 FPS real-time moving architecture simulator with built-in video recorder. |
+| `architecture.png` | `Image` | High-resolution 16:9 cloud architecture diagram for documentation & social posts. |
 
 ---
 
