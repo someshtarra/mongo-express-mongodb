@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Real-Time Kubernetes Architecture - MongoDB & Mongo Express</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #090d16;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow-x: hidden;
+      padding: 16px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 14px;
+    }
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .k8s-badge {
+      background: #326ce5;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+    }
+    h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      color: #34d399;
+      font-weight: 500;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.6; }
+    }
+    .canvas-wrapper {
+      position: relative;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #334155;
+      background: radial-gradient(circle at 50% 50%, #111b2e 0%, #090e17 100%);
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 520px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+      padding: 14px 18px;
+      background: #1e293b;
+      border-radius: 12px;
+    }
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    button:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+    button.secondary {
+      background: #334155;
+      color: #cbd5e1;
+    }
+    button.secondary:hover {
+      background: #475569;
+      color: white;
+    }
+    button.record-btn {
+      background: #dc2626;
+      color: white;
+    }
+    button.record-btn:hover {
+      background: #b91c1c;
+    }
+    button.record-btn.recording {
+      background: #ef4444;
+      animation: pulse 1s infinite;
+    }
+    .metric-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .metric-item span {
+      color: #38bdf8;
+      font-weight: 700;
+      font-family: monospace;
+    }
+    .log-stream {
+      margin-top: 14px;
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      color: #94a3b8;
+      height: 70px;
+      overflow-y: auto;
+    }
+    .log-entry {
+      margin-bottom: 3px;
+      display: flex;
+      gap: 8px;
+    }
+    .log-time { color: #64748b; }
+    .log-info { color: #38bdf8; }
+    .log-success { color: #34d399; }
+    .log-warn { color: #fbbf24; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div class="title-group">
+      <span class="k8s-badge">K8S ARCHITECTURE</span>
+      <h1>MongoDB & Mongo Express Live Communication Stream</h1>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      <span id="trafficStatus">Traffic Active (60 FPS)</span>
+    </div>
+  </div>
+
+  <div class="canvas-wrapper">
+    <canvas id="archCanvas" width="1160" height="520"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="btn-group">
+      <button id="sendReqBtn">⚡ Send HTTP Query</button>
+      <button id="toggleTrafficBtn" class="secondary">⏸ Pause Traffic</button>
+      <button id="burstBtn" class="secondary">🔥 Burst 10x</button>
+      <button id="recordBtn" class="record-btn">🎥 Record for LinkedIn (MP4/WebM)</button>
+    </div>
+    <div class="metric-group">
+      <div class="metric-item">Rate: <span id="mReqRate">8.4</span> req/s</div>
+      <div class="metric-item">Latency: <span id="mLatency">1.2</span> ms</div>
+      <div class="metric-item">Active Packets: <span id="mPackets">14</span></div>
+    </div>
+  </div>
+
+  <div class="log-stream" id="logStream">
+    <div class="log-entry"><span class="log-time">[00:00:01]</span> <span class="log-info">[INIT]</span> Cluster initialized. Services: mongodb-service (ClusterIP: 27017), mongo-express-service (NodePort: 30000)</div>
+    <div class="log-entry"><span class="log-time">[00:00:02]</span> <span class="log-success">[READY]</span> MongoDB Pod & Mongo Express Pod status: 1/1 Running</div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('archCanvas');
+const ctx = canvas.getContext('2d');
+
+let isTrafficActive = true;
+let isBurst = false;
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+
+// Nodes Definition
+const nodes = {
+  client: { x: 70, y: 220, w: 100, h: 75, label: "Client / Browser", sub: "HTTPS / Port 8081", color: "#38bdf8", icon: "🌐" },
+  extSvc: { x: 230, y: 140, w: 170, h: 75, label: "mongo-express-service", sub: "LoadBalancer / NodePort 30000", color: "#60a5fa", icon: "⚖️" },
+  mePod:  { x: 450, y: 140, w: 160, h: 75, label: "Mongo Express Pod", sub: "Web UI Container (Port 8081)", color: "#818cf8", icon: "📦" },
+  dbSvc:  { x: 670, y: 220, w: 170, h: 75, label: "mongodb-service", sub: "ClusterIP 27017 (Private DNS)", color: "#34d399", icon: "🔒" },
+  dbPod:  { x: 900, y: 220, w: 170, h: 80, label: "MongoDB Pod", sub: "Replica: 1 | GLIBC_TUNABLES", color: "#10b981", icon: "🍃" },
+  secret: { x: 330, y: 410, w: 200, h: 65, label: "Secret (mongo-secret)", sub: "root-username, root-password", color: "#f59e0b", icon: "🔑" },
+  config: { x: 640, y: 410, w: 200, h: 65, label: "ConfigMap (mongodb-config)", sub: "database_url: mongodb-service", color: "#06b6d4", icon: "⚙️" }
+};
+
+// Wire Paths
+const paths = [
+  // User -> mongo-express-service
+  { from: nodes.client, to: nodes.extSvc, color: "#38bdf8", label: "External Req :8081" },
+  // mongo-express-service -> mongo-express Pod
+  { from: nodes.extSvc, to: nodes.mePod, color: "#60a5fa", label: "TargetPort :8081" },
+  // mongo-express Pod -> mongodb-service
+  { from: nodes.mePod, to: nodes.dbSvc, color: "#a855f7", label: "Internal DNS :27017" },
+  // mongodb-service -> MongoDB Pod
+  { from: nodes.dbSvc, to: nodes.dbPod, color: "#10b981", label: "ClusterIP Route" },
+  // Secret -> Mongo Express Pod & MongoDB Pod
+  { from: nodes.secret, to: nodes.mePod, color: "#f59e0b", dashed: true, label: "Inject Credentials" },
+  { from: nodes.secret, to: nodes.dbPod, color: "#f59e0b", dashed: true, label: "Inject Credentials" },
+  // ConfigMap -> Mongo Express Pod
+  { from: nodes.config, to: nodes.mePod, color: "#06b6d4", dashed: true, label: "Inject DB URL" }
+];
+
+let packets = [];
+
+class Packet {
+  constructor(path, type = "data", returnBack = true) {
+    this.path = path;
+    this.progress = 0;
+    this.speed = (0.008 + Math.random() * 0.005) * (isBurst ? 2.5 : 1);
+    this.type = type; // "data", "query", "secret", "response"
+    this.returnBack = returnBack;
+    this.isReturning = false;
+    this.size = type === "secret" ? 4 : 5;
+    this.color = path.color;
+  }
+
+  update() {
+    this.progress += this.speed;
+    if (this.progress >= 1) {
+      if (this.returnBack && !this.isReturning && this.type !== "secret") {
+        this.isReturning = true;
+        this.progress = 0;
+      } else {
+        return false; // remove
+      }
+    }
+    return true;
+  }
+
+  draw() {
+    const startX = this.isReturning ? this.path.to.x + this.path.to.w/2 : this.path.from.x + this.path.from.w/2;
+    const startY = this.isReturning ? this.path.to.y + this.path.to.h/2 : this.path.from.y + this.path.from.h/2;
+    const endX = this.isReturning ? this.path.from.x + this.path.from.w/2 : this.path.to.x + this.path.to.w/2;
+    const endY = this.isReturning ? this.path.from.y + this.path.from.h/2 : this.path.to.y + this.path.to.h/2;
+
+    const currX = startX + (endX - startX) * this.progress;
+    const currY = startY + (endY - startY) * this.progress;
+
+    // Glowing Trail
+    ctx.save();
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = this.isReturning ? "#38bdf8" : this.color;
+    ctx.beginPath();
+    ctx.arc(currX, currY, this.size, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pulse core
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(currX, currY, this.size * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// Spawner
+let spawnTimer = 0;
+function spawnRoutine() {
+  if (!isTrafficActive) return;
+  spawnTimer++;
+
+  const threshold = isBurst ? 8 : 35;
+  if (spawnTimer >= threshold) {
+    spawnTimer = 0;
+    // Client to ME service
+    packets.push(new Packet(paths[0]));
+    
+    // Internal MongoDB query
+    setTimeout(() => {
+      packets.push(new Packet(paths[1]));
+    }, 200);
+
+    setTimeout(() => {
+      packets.push(new Packet(paths[2]));
+      logMessage("[DNS/TCP] mongo-express -> mongodb-service:27017 (find query: 1.2ms)", "info");
+    }, 550);
+
+    setTimeout(() => {
+      packets.push(new Packet(paths[3]));
+      logMessage("[DB] MongoDB Pod query executed. Status 200 OK", "success");
+    }, 850);
+  }
+
+  // Periodic secret pulses
+  if (Math.random() < 0.02) {
+    packets.push(new Packet(paths[4], "secret", false));
+    packets.push(new Packet(paths[5], "secret", false));
+    packets.push(new Packet(paths[6], "secret", false));
+  }
+}
+
+// Log utility
+function logMessage(text, type = "info") {
+  const logStream = document.getElementById('logStream');
+  const now = new Date();
+  const timeStr = `[${now.toTimeString().split(' ')[0]}]`;
+  const typeClass = type === "success" ? "log-success" : type === "warn" ? "log-warn" : "log-info";
+  
+  const div = document.createElement('div');
+  div.className = "log-entry";
+  div.innerHTML = `<span class="log-time">${timeStr}</span> <span class="${typeClass}">[MSG]</span> ${text}`;
+  logStream.appendChild(div);
+  
+  if (logStream.children.length > 30) {
+    logStream.removeChild(logStream.children[0]);
+  }
+  logStream.scrollTop = logStream.scrollHeight;
+}
+
+// Render loop
+let frame = 0;
+function render() {
+  frame++;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 1. Draw Kubernetes Cluster Boundary
+  ctx.save();
+  ctx.strokeStyle = "rgba(50, 108, 229, 0.4)";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([8, 6]);
+  ctx.fillStyle = "rgba(15, 23, 42, 0.45)";
+  roundRect(ctx, 200, 45, 940, 455, 14, true, true);
+  ctx.setLineDash([]);
+
+  // K8s Cluster Label & Icon
+  ctx.fillStyle = "#60a5fa";
+  ctx.font = "bold 13px system-ui";
+  ctx.fillText("⎈ Kubernetes Cluster Boundary (default namespace)", 220, 75);
+  ctx.restore();
+
+  // 2. Draw Paths
+  paths.forEach(p => {
+    ctx.save();
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = p.dashed ? 1.2 : 2;
+    if (p.dashed) ctx.setLineDash([4, 4]);
+    ctx.globalAlpha = p.dashed ? 0.35 : 0.45;
+
+    ctx.beginPath();
+    const sx = p.from.x + p.from.w/2;
+    const sy = p.from.y + p.from.h/2;
+    const ex = p.to.x + p.to.w/2;
+    const ey = p.to.y + p.to.h/2;
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+
+    // Small path label in center
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "10px monospace";
+    const mx = (sx + ex) / 2;
+    const my = (sy + ey) / 2 - 4;
+    ctx.fillText(p.label, mx - 25, my);
+    ctx.restore();
+  });
+
+  // 3. Update & Draw Packets
+  spawnRoutine();
+  packets = packets.filter(p => {
+    const alive = p.update();
+    if (alive) p.draw();
+    return alive;
+  });
+
+  // 4. Draw Nodes
+  Object.values(nodes).forEach(n => {
+    drawNode(n);
+  });
+
+  // Metrics update
+  if (frame % 30 === 0) {
+    document.getElementById('mPackets').innerText = packets.length;
+    document.getElementById('mReqRate').innerText = (isBurst ? (25 + Math.random()*5).toFixed(1) : (8 + Math.random()*2).toFixed(1));
+    document.getElementById('mLatency').innerText = (1.1 + Math.random()*0.4).toFixed(2);
+  }
+
+  requestAnimationFrame(render);
+}
+
+function drawNode(n) {
+  ctx.save();
+  // Card Shadow & Body
+  ctx.shadowColor = "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = "#1e293b";
+  ctx.strokeStyle = n.color;
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, n.x, n.y, n.w, n.h, 10, true, true);
+
+  // Icon
+  ctx.font = "16px system-ui";
+  ctx.fillText(n.icon, n.x + 12, n.y + 26);
+
+  // Node Header
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = "bold 11px system-ui";
+  ctx.fillText(n.label, n.x + 36, n.y + 24);
+
+  // Node Subtitle
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "9.5px monospace";
+  ctx.fillText(n.sub, n.x + 12, n.y + 45);
+
+  // Healthy badge
+  ctx.fillStyle = "#10b981";
+  ctx.beginPath();
+  ctx.arc(n.x + n.w - 14, n.y + 16, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
+}
+
+// Button Listeners
+document.getElementById('sendReqBtn').addEventListener('click', () => {
+  packets.push(new Packet(paths[0]));
+  setTimeout(() => packets.push(new Packet(paths[1])), 200);
+  setTimeout(() => packets.push(new Packet(paths[2])), 500);
+  setTimeout(() => packets.push(new Packet(paths[3])), 800);
+  logMessage("[MANUAL] Triggered single transactional query.", "warn");
+});
+
+document.getElementById('toggleTrafficBtn').addEventListener('click', function() {
+  isTrafficActive = !isTrafficActive;
+  this.innerText = isTrafficActive ? "⏸ Pause Traffic" : "▶ Resume Traffic";
+  document.getElementById('trafficStatus').innerText = isTrafficActive ? "Traffic Active (60 FPS)" : "Traffic Paused";
+});
+
+document.getElementById('burstBtn').addEventListener('click', function() {
+  isBurst = !isBurst;
+  this.innerText = isBurst ? "❄️ Normal Rate" : "🔥 Burst 10x";
+  logMessage(isBurst ? "[SIM] Burst simulation activated: 30 req/s" : "[SIM] Normal traffic restored.", "warn");
+});
+
+// LinkedIn Video Recording Utility (using Canvas stream)
+document.getElementById('recordBtn').addEventListener('click', function() {
+  const btn = this;
+  if (!isRecording) {
+    // Start Recording
+    recordedChunks = [];
+    const stream = canvas.captureStream(60);
+    
+    // Choose compatible mimeType
+    let mimeType = 'video/webm;codecs=vp9';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      mimeType = 'video/webm';
+    }
+    
+    try {
+      mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+    } catch (e) {
+      mediaRecorder = new MediaRecorder(stream);
+    }
+
+    mediaRecorder.ondataavailable = function(e) {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = function() {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = 'kubernetes-mongodb-live-traffic.webm';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      btn.classList.remove('recording');
+      btn.innerText = "🎥 Record for LinkedIn (MP4/WebM)";
+      logMessage("[EXPORT] Video recording completed and downloaded! Ready for LinkedIn.", "success");
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    btn.classList.add('recording');
+    btn.innerText = "🔴 Recording (5s)... Stop & Save";
+    logMessage("[RECORD] Recording 60 FPS animation for LinkedIn...", "warn");
+
+    // Automatically stop after 6 seconds for the perfect LinkedIn loop clip
+    setTimeout(() => {
+      if (isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+      }
+    }, 6000);
+
+  } else {
+    // Stop manually
+    mediaRecorder.stop();
+    isRecording = false;
+  }
+});
+
+// Start loop
+render();
+</script>
+
+</body>
+</html>
