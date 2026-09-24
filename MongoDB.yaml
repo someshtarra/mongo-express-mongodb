@@ -12,9 +12,8 @@ spec:
       app: mongodb
   template:
     metadata:
-      matchLabels:
-        labels:
-          app: mongodb
+      labels:
+        app: mongodb
     spec:
       containers:
         - name: mongodb-container
